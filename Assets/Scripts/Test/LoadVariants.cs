@@ -2,7 +2,6 @@ using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using AssetBundles;
 
 
 public class LoadVariants : MonoBehaviour
@@ -20,18 +19,6 @@ public class LoadVariants : MonoBehaviour
         bundlesLoaded = false;
     }
 
-    #if ENABLE_IOS_ON_DEMAND_RESOURCES
-    
-    /*  On iOS it's not possible to load different asset bundle variants on demand.
-        We load asset bundle variant in the same way as usual asset bundle. Depending
-        on whether we use ODR or not App Store will serve us correct resource on demand,
-        or the resource will be already downloaded within the asset catalog.
-    */
-    void Start()
-    {
-        StartCoroutine(BeginExample());
-    }
-    #else
     void OnGUI()
     {
         if (!bundlesLoaded)
@@ -60,60 +47,12 @@ public class LoadVariants : MonoBehaviour
         }
     }
 
-    #endif
-
     // Use this for initialization
     IEnumerator BeginExample()
     {
-        yield return StartCoroutine(Initialize());
-
-        // Set active variants.
-        BundleManager.ActiveVariants = activeVariants;
-
-        // Load variant level which depends on variants.
-        yield return StartCoroutine(InitializeLevelAsync(variantSceneName, true));
+        yield return Initialize();
+        yield return InitializeLevelAsync(variantSceneName, true);
     }
-
-    // Initialize the downloading URL.
-    // eg. Development server / iOS ODR / web URL
-    void InitializeSourceURL()
-    {
-        // If ODR is available and enabled, then use it and let Xcode handle download requests.
-        #if ENABLE_IOS_ON_DEMAND_RESOURCES
-        if (UnityEngine.iOS.OnDemandResources.enabled)
-        {
-            AssetBundleManager.overrideBaseDownloadingURL += OverrideDownloadingURLForLocalBundles;
-            AssetBundleManager.SetSourceAssetBundleURL("odr://");
-            return;
-        }
-        #endif
-        #if DEVELOPMENT_BUILD || UNITY_EDITOR
-        // With this code, when in-editor or using a development builds: Always use the AssetBundle Server
-        // (This is very dependent on the production workflow of the project.
-        //      Another approach would be to make this configurable in the standalone player.)
-        BundleManager.SetDevelopmentAssetBundleServer();
-        return;
-        #else
-        // Use the following code if AssetBundles are embedded in the project for example via StreamingAssets folder etc:
-        AssetBundleManager.SetSourceAssetBundleURL(Application.dataPath + "/");
-        // Or customize the URL based on your deployment or configuration
-        //AssetBundleManager.SetSourceAssetBundleURL("http://www.MyWebsite/MyAssetBundles");
-        return;
-        #endif
-    }
-
-    #if ENABLE_IOS_ON_DEMAND_RESOURCES
-    // The following asset bundles do not use ODR
-    List<string> localBundles = new List<string>{ "variants/logo" };
-
-    protected string OverrideDownloadingURLForLocalBundles(string baseAssetBundleName)
-    {
-        if (localBundles.Contains(baseAssetBundleName))
-            return "res://";
-        return null;
-    }
-
-    #endif
 
     // Initialize the downloading url and AssetBundleManifest object.
     protected IEnumerator Initialize()
@@ -121,13 +60,8 @@ public class LoadVariants : MonoBehaviour
         // Don't destroy the game object as we base on it to run the loading script.
         DontDestroyOnLoad(gameObject);
 
-        InitializeSourceURL();
-
         // Initialize AssetBundleManifest which loads the AssetBundleManifest object.
-        var request = BundleManager.Initialize();
-
-        if (request != null)
-            yield return StartCoroutine(request);
+		yield return AssetManager.Instance.Initialize ();
     }
 
     protected IEnumerator InitializeLevelAsync(string levelName, bool isAdditive)
@@ -136,7 +70,7 @@ public class LoadVariants : MonoBehaviour
         float startTime = Time.realtimeSinceStartup;
 
         // Load level from assetBundle.
-        LoadOperation request = BundleManager.LoadLevelAsync(variantSceneAssetBundle, levelName, isAdditive);
+		LoadOperation request = AssetManager.Instance.m_BundleManager.LoadLevelAsync(variantSceneAssetBundle, levelName, isAdditive);
         if (request == null)
             yield break;
 

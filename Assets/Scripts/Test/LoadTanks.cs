@@ -1,6 +1,5 @@
 using UnityEngine;
 using System.Collections;
-using AssetBundles;
 
 /*  On iOS with ODR it's not possible to demonstrate dynamic asset bundle
     variant selection which is shown in this scene. Please use the 
@@ -101,41 +100,11 @@ public class LoadTanks : MonoBehaviour
     {
         yield return StartCoroutine(Initialize());
 
-        // Set active variants.
-        BundleManager.ActiveVariants = variants;
-
         // Load variant level which depends on variants.
         yield return StartCoroutine(InitializeLevelAsync(sceneName, true));
 
         // Load additonal assets, in this case a language specific banner
         yield return StartCoroutine(InstantiateGameObjectAsync(textAssetBundle, textAssetName));
-    }
-
-    // Initialize the downloading URL.
-    // eg. Development server / iOS ODR / web URL
-    void InitializeSourceURL()
-    {
-        // If ODR is available and enabled, then use it and let Xcode handle download requests.
-        #if ENABLE_IOS_ON_DEMAND_RESOURCES
-        if (UnityEngine.iOS.OnDemandResources.enabled)
-        {
-            AssetBundleManager.SetSourceAssetBundleURL("odr://");
-            return;
-        }
-        #endif
-        #if DEVELOPMENT_BUILD || UNITY_EDITOR
-        // With this code, when in-editor or using a development builds: Always use the AssetBundle Server
-        // (This is very dependent on the production workflow of the project.
-        //      Another approach would be to make this configurable in the standalone player.)
-        BundleManager.SetDevelopmentAssetBundleServer();
-        return;
-        #else
-        // Use the following code if AssetBundles are embedded in the project for example via StreamingAssets folder etc:
-        AssetBundleManager.SetSourceAssetBundleURL(Application.dataPath + "/");
-        // Or customize the URL based on your deployment or configuration
-        //AssetBundleManager.SetSourceAssetBundleURL("http://www.MyWebsite/MyAssetBundles");
-        return;
-        #endif
     }
 
     // Initialize the downloading url and AssetBundleManifest object.
@@ -144,13 +113,11 @@ public class LoadTanks : MonoBehaviour
         // Don't destroy this gameObject as we depend on it to run the loading script.
         DontDestroyOnLoad(gameObject);
 
-        InitializeSourceURL();
 
         // Initialize AssetBundleManifest which loads the AssetBundleManifest object.
-        var request = BundleManager.Initialize();
+		yield return AssetManager.Instance.Initialize ();
+        
 
-        if (request != null)
-            yield return StartCoroutine(request);
     }
 
     protected IEnumerator InitializeLevelAsync(string levelName, bool isAdditive)
@@ -159,7 +126,7 @@ public class LoadTanks : MonoBehaviour
         float startTime = Time.realtimeSinceStartup;
 
         // Load level from assetBundle.
-        LoadOperation request = BundleManager.LoadLevelAsync(sceneAssetBundle, levelName, isAdditive);
+		LoadOperation request = AssetManager.Instance.m_BundleManager.LoadLevelAsync(sceneAssetBundle, levelName, isAdditive);
         if (request == null)
             yield break;
 
@@ -176,7 +143,7 @@ public class LoadTanks : MonoBehaviour
         float startTime = Time.realtimeSinceStartup;
 
         // Load asset from assetBundle.
-        AssetLoadOperationBase request = BundleManager.LoadAssetAsync(assetBundleName, assetName, typeof(GameObject));
+		AssetLoadOperationBase request = AssetManager.Instance.m_BundleManager.LoadAssetAsync(assetBundleName, assetName, typeof(GameObject));
         if (request == null)
         {
             Debug.LogError("Failed AssetLoadOperationBase on " + assetName + " from the AssetBundle " + assetBundleName + ".");

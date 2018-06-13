@@ -10,5 +10,7 @@
         }
     }
 
-    public virtual void Release() { }
+    public virtual void Release() {
+        _instance = null;
+    }
 }

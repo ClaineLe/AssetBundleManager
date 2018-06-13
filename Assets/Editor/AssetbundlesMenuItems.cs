@@ -13,13 +13,13 @@ namespace AssetBundles
         [MenuItem(kSimulationMode)]
         public static void ToggleSimulationMode()
         {
-            AssetBundleManager.SimulateAssetBundleInEditor = !AssetBundleManager.SimulateAssetBundleInEditor;
+            BundleManager.SimulateAssetBundleInEditor = !BundleManager.SimulateAssetBundleInEditor;
         }
 
         [MenuItem(kSimulationMode, true)]
         public static bool ToggleSimulationModeValidate()
         {
-            Menu.SetChecked(kSimulationMode, AssetBundleManager.SimulateAssetBundleInEditor);
+            Menu.SetChecked(kSimulationMode, BundleManager.SimulateAssetBundleInEditor);
             return true;
         }
 

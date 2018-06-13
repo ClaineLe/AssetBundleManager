@@ -33,32 +33,13 @@ namespace AssetBundles
     /// Loaded assetBundle contains the references count which can be used to
     /// unload dependent assetBundles automatically.
     /// </summary>
-    public class LoadedAssetBundle
-    {
-        public AssetBundle m_AssetBundle;
-        public int m_ReferencedCount;
-
-        internal event Action unload;
-
-        internal void OnUnload()
-        {
-            m_AssetBundle.Unload(false);
-            if (unload != null)
-                unload();
-        }
-
-        public LoadedAssetBundle(AssetBundle assetBundle)
-        {
-            m_AssetBundle = assetBundle;
-            m_ReferencedCount = 1;
-        }
-    }
+   
 
     /// <summary>
     /// Class takes care of loading assetBundle and its dependencies
     /// automatically, loading variants automatically.
     /// </summary>
-    public class AssetBundleManager : MonoBehaviour
+    public class BundleManager : MonoBehaviour
     {
         public enum LogMode { All, JustErrors };
         public enum LogType { Info, Warning, Error };
@@ -76,7 +57,7 @@ namespace AssetBundles
         static Dictionary<string, LoadedAssetBundle> m_LoadedAssetBundles = new Dictionary<string, LoadedAssetBundle>();
         static Dictionary<string, string> m_DownloadingErrors = new Dictionary<string, string>();
         static List<string> m_DownloadingBundles = new List<string>();
-        static List<AssetBundleLoadOperation> m_InProgressOperations = new List<AssetBundleLoadOperation>();
+        static List<LoadOperation> m_InProgressOperations = new List<LoadOperation>();
         static Dictionary<string, string[]> m_Dependencies = new Dictionary<string, string[]>();
 
         public static LogMode logMode
@@ -124,11 +105,11 @@ namespace AssetBundles
         private static void Log(LogType logType, string text)
         {
             if (logType == LogType.Error)
-                Debug.LogError("[AssetBundleManager] " + text);
+                Debug.LogError("[BundleManager] " + text);
             else if (m_LogMode == LogMode.All && logType == LogType.Warning)
-                Debug.LogWarning("[AssetBundleManager] " + text);
+                Debug.LogWarning("[BundleManager] " + text);
             else if (m_LogMode == LogMode.All)
-                Debug.Log("[AssetBundleManager] " + text);
+                Debug.Log("[BundleManager] " + text);
         }
 
 #if UNITY_EDITOR
@@ -190,7 +171,7 @@ namespace AssetBundles
                 absolutePath += "/";
             }
 
-            BaseDownloadingURL = absolutePath + Utility.GetPlatformName() + "/";
+            BaseDownloadingURL = absolutePath + BundlesUtility.GetPlatformName() + "/";
         }
 
         /// <summary>
@@ -212,7 +193,7 @@ namespace AssetBundles
             }
             else
             {
-                AssetBundleManager.SetSourceAssetBundleURL(url);
+                BundleManager.SetSourceAssetBundleURL(url);
             }
         }
 
@@ -266,7 +247,7 @@ namespace AssetBundles
         /// </summary>
         static public AssetBundleLoadManifestOperation Initialize()
         {
-            return Initialize(Utility.GetPlatformName());
+            return Initialize(BundlesUtility.GetPlatformName());
         }
 
         /// <summary>
@@ -279,7 +260,7 @@ namespace AssetBundles
             Log(LogType.Info, "Simulation Mode: " + (SimulateAssetBundleInEditor ? "Enabled" : "Disabled"));
 #endif
 
-            var go = new GameObject("AssetBundleManager", typeof(AssetBundleManager));
+            var go = new GameObject("BundleManager", typeof(BundleManager));
             DontDestroyOnLoad(go);
 
 #if UNITY_EDITOR
@@ -316,7 +297,7 @@ namespace AssetBundles
             {
                 if (m_AssetBundleManifest == null)
                 {
-                    Log(LogType.Error, "Please initialize AssetBundleManifest by calling AssetBundleManager.Initialize()");
+                    Log(LogType.Error, "Please initialize AssetBundleManifest by calling BundleManager.Initialize()");
                     return;
                 }
             }
@@ -377,7 +358,7 @@ namespace AssetBundles
             else
                 download = WWW.LoadFromCacheOrDownload(url, m_AssetBundleManifest.GetAssetBundleHash(assetBundleName), 0);
 
-            m_InProgressOperations.Add(new AssetBundleDownloadFromWebOperation(assetBundleName, download));
+            m_InProgressOperations.Add(new BundleLoadOperation(assetBundleName, download));
             m_DownloadingBundles.Add(assetBundleName);
             return false;
         }
@@ -387,7 +368,7 @@ namespace AssetBundles
         {
             if (m_AssetBundleManifest == null)
             {
-                Log(LogType.Error, "Please initialize AssetBundleManifest by calling AssetBundleManager.Initialize()");
+                Log(LogType.Error, "Please initialize AssetBundleManifest by calling BundleManager.Initialize()");
                 return;
             }
 
@@ -467,9 +448,9 @@ namespace AssetBundles
             }
         }
 
-        void ProcessFinishedOperation(AssetBundleLoadOperation operation)
+        void ProcessFinishedOperation(LoadOperation operation)
         {
-            AssetBundleDownloadOperation download = operation as AssetBundleDownloadOperation;
+            BundleLoadOperationBase download = operation as BundleLoadOperationBase;
             if (download == null)
                 return;
 
@@ -488,11 +469,11 @@ namespace AssetBundles
         /// <summary>
         /// Starts a load operation for an asset from the given asset bundle.
         /// </summary>
-        static public AssetBundleLoadAssetOperation LoadAssetAsync(string assetBundleName, string assetName, System.Type type)
+        static public AssetLoadOperationBase LoadAssetAsync(string assetBundleName, string assetName, System.Type type)
         {
             Log(LogType.Info, "Loading " + assetName + " from " + assetBundleName + " bundle");
 
-            AssetBundleLoadAssetOperation operation = null;
+            AssetLoadOperationBase operation = null;
 #if UNITY_EDITOR
             if (SimulateAssetBundleInEditor)
             {
@@ -505,13 +486,13 @@ namespace AssetBundles
 
                 // @TODO: Now we only get the main object from the first asset. Should consider type also.
                 UnityEngine.Object target = AssetDatabase.LoadMainAssetAtPath(assetPaths[0]);
-                operation = new AssetBundleLoadAssetOperationSimulation(target);
+                operation = new AssetLoadOperationSimulation(target);
             }
             else
 #endif
             {
                 LoadAssetBundle(assetBundleName);
-                operation = new AssetBundleLoadAssetOperationFull(assetBundleName, assetName, type);
+                operation = new AssetLoadOperation(assetBundleName, assetName, type);
 
                 m_InProgressOperations.Add(operation);
             }
@@ -522,26 +503,26 @@ namespace AssetBundles
         /// <summary>
         /// Starts a load operation for a level from the given asset bundle.
         /// </summary>
-        static public AssetBundleLoadOperation LoadLevelAsync(string assetBundleName, string levelName, bool isAdditive)
+        static public LoadOperation LoadLevelAsync(string assetBundleName, string levelName, bool isAdditive)
         {
             Log(LogType.Info, "Loading " + levelName + " from " + assetBundleName + " bundle");
 
-            AssetBundleLoadOperation operation = null;
+            LoadOperation operation = null;
 #if UNITY_EDITOR
             if (SimulateAssetBundleInEditor)
             {
-                operation = new AssetBundleLoadLevelSimulationOperation(assetBundleName, levelName, isAdditive);
+                operation = new LevelLoadOperationSimulation(assetBundleName, levelName, isAdditive);
             }
             else
 #endif
             {
                 LoadAssetBundle(assetBundleName);
-                operation = new AssetBundleLoadLevelOperation(assetBundleName, levelName, isAdditive);
+                operation = new LevelLoadOperation(assetBundleName, levelName, isAdditive);
 
                 m_InProgressOperations.Add(operation);
             }
 
             return operation;
         }
-    } // End of AssetBundleManager.
+    } // End of BundleManager.
 }

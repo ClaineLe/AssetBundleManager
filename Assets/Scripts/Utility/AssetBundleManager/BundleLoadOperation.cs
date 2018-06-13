@@ -4,7 +4,7 @@ using System.Collections;
 
 namespace AssetBundles
 {
-    public abstract class AssetBundleLoadOperation : IEnumerator
+    public abstract class LoadOperation : IEnumerator
     {
         public object Current
         {
@@ -28,7 +28,7 @@ namespace AssetBundles
         abstract public bool IsDone();
     }
 
-    public abstract class AssetBundleDownloadOperation : AssetBundleLoadOperation
+    public abstract class BundleLoadOperationBase : LoadOperation
     {
         bool done;
 
@@ -57,18 +57,44 @@ namespace AssetBundles
 
         public abstract string GetSourceURL();
 
-        public AssetBundleDownloadOperation(string assetBundleName)
+        public BundleLoadOperationBase(string assetBundleName)
         {
             this.assetBundleName = assetBundleName;
         }
     }
 
-    public class AssetBundleDownloadFromWebOperation : AssetBundleDownloadOperation
+    public abstract class AssetLoadOperationBase : LoadOperation
+    {
+        public abstract T GetAsset<T>() where T : UnityEngine.Object;
+    }
+
+    public class LoadedAssetBundle
+    {
+        public AssetBundle m_AssetBundle;
+        public int m_ReferencedCount;
+
+        internal event System.Action unload;
+
+        internal void OnUnload()
+        {
+            m_AssetBundle.Unload(false);
+            if (unload != null)
+                unload();
+        }
+
+        public LoadedAssetBundle(AssetBundle assetBundle)
+        {
+            m_AssetBundle = assetBundle;
+            m_ReferencedCount = 1;
+        }
+    }
+
+    public class BundleLoadOperation : BundleLoadOperationBase
     {
         WWW m_WWW;
         string m_Url;
 
-        public AssetBundleDownloadFromWebOperation(string assetBundleName, WWW www)
+        public BundleLoadOperation(string assetBundleName, WWW www)
             : base(assetBundleName)
         {
             if (www == null)
@@ -101,39 +127,7 @@ namespace AssetBundles
         }
     }
 
-#if UNITY_EDITOR
-    public class AssetBundleLoadLevelSimulationOperation : AssetBundleLoadOperation
-    {
-        AsyncOperation m_Operation = null;
-
-        public AssetBundleLoadLevelSimulationOperation(string assetBundleName, string levelName, bool isAdditive)
-        {
-            string[] levelPaths = UnityEditor.AssetDatabase.GetAssetPathsFromAssetBundleAndAssetName(assetBundleName, levelName);
-            if (levelPaths.Length == 0)
-            {
-                Debug.LogError("There is no scene with name \"" + levelName + "\" in " + assetBundleName);
-                return;
-            }
-
-            if (isAdditive)
-                m_Operation = UnityEditor.EditorApplication.LoadLevelAdditiveAsyncInPlayMode(levelPaths[0]);
-            else
-                m_Operation = UnityEditor.EditorApplication.LoadLevelAsyncInPlayMode(levelPaths[0]);
-        }
-
-        public override bool Update()
-        {
-            return false;
-        }
-
-        public override bool IsDone()
-        {
-            return m_Operation == null || m_Operation.isDone;
-        }
-    }
-#endif
-
-    public class AssetBundleLoadLevelOperation : AssetBundleLoadOperation
+    public class LevelLoadOperation : LoadOperation
     {
         protected string                m_AssetBundleName;
         protected string                m_LevelName;
@@ -141,7 +135,7 @@ namespace AssetBundles
         protected string                m_DownloadingError;
         protected AsyncOperation        m_Request;
 
-        public AssetBundleLoadLevelOperation(string assetbundleName, string levelName, bool isAdditive)
+        public LevelLoadOperation(string assetbundleName, string levelName, bool isAdditive)
         {
             m_AssetBundleName = assetbundleName;
             m_LevelName = levelName;
@@ -153,7 +147,7 @@ namespace AssetBundles
             if (m_Request != null)
                 return false;
 
-            LoadedAssetBundle bundle = AssetBundleManager.GetLoadedAssetBundle(m_AssetBundleName, out m_DownloadingError);
+            LoadedAssetBundle bundle = BundleManager.GetLoadedAssetBundle(m_AssetBundleName, out m_DownloadingError);
             if (bundle != null)
             {
                 m_Request = SceneManager.LoadSceneAsync(m_LevelName, m_IsAdditive ? LoadSceneMode.Additive : LoadSceneMode.Single);
@@ -177,37 +171,7 @@ namespace AssetBundles
         }
     }
 
-    public abstract class AssetBundleLoadAssetOperation : AssetBundleLoadOperation
-    {
-        public abstract T GetAsset<T>() where T: UnityEngine.Object;
-    }
-
-    public class AssetBundleLoadAssetOperationSimulation : AssetBundleLoadAssetOperation
-    {
-        Object                          m_SimulatedObject;
-
-        public AssetBundleLoadAssetOperationSimulation(Object simulatedObject)
-        {
-            m_SimulatedObject = simulatedObject;
-        }
-
-        public override T GetAsset<T>()
-        {
-            return m_SimulatedObject as T;
-        }
-
-        public override bool Update()
-        {
-            return false;
-        }
-
-        public override bool IsDone()
-        {
-            return true;
-        }
-    }
-
-    public class AssetBundleLoadAssetOperationFull : AssetBundleLoadAssetOperation
+    public class AssetLoadOperation : AssetLoadOperationBase
     {
         protected string                m_AssetBundleName;
         protected string                m_AssetName;
@@ -215,7 +179,7 @@ namespace AssetBundles
         protected System.Type           m_Type;
         protected AssetBundleRequest    m_Request = null;
 
-        public AssetBundleLoadAssetOperationFull(string bundleName, string assetName, System.Type type)
+        public AssetLoadOperation(string bundleName, string assetName, System.Type type)
         {
             m_AssetBundleName = bundleName;
             m_AssetName = assetName;
@@ -236,7 +200,7 @@ namespace AssetBundles
             if (m_Request != null)
                 return false;
 
-            LoadedAssetBundle bundle = AssetBundleManager.GetLoadedAssetBundle(m_AssetBundleName, out m_DownloadingError);
+            LoadedAssetBundle bundle = BundleManager.GetLoadedAssetBundle(m_AssetBundleName, out m_DownloadingError);
             if (bundle != null)
             {
                 ///@TODO: When asset bundle download fails this throws an exception...
@@ -263,7 +227,7 @@ namespace AssetBundles
         }
     }
 
-    public class AssetBundleLoadManifestOperation : AssetBundleLoadAssetOperationFull
+    public class AssetBundleLoadManifestOperation : AssetLoadOperation
     {
         public AssetBundleLoadManifestOperation(string bundleName, string assetName, System.Type type)
             : base(bundleName, assetName, type)
@@ -276,11 +240,69 @@ namespace AssetBundles
 
             if (m_Request != null && m_Request.isDone)
             {
-                AssetBundleManager.AssetBundleManifestObject = GetAsset<AssetBundleManifest>();
+                BundleManager.AssetBundleManifestObject = GetAsset<AssetBundleManifest>();
                 return false;
             }
             else
                 return true;
         }
     }
+
+
+
+#if UNITY_EDITOR
+    public class AssetLoadOperationSimulation : AssetLoadOperationBase
+    {
+        Object m_SimulatedObject;
+        public AssetLoadOperationSimulation(Object simulatedObject)
+        {
+            m_SimulatedObject = simulatedObject;
+        }
+
+        public override T GetAsset<T>()
+        {
+            return m_SimulatedObject as T;
+        }
+
+        public override bool Update()
+        {
+            return false;
+        }
+
+        public override bool IsDone()
+        {
+            return true;
+        }
+    }
+
+    public class LevelLoadOperationSimulation : LoadOperation
+    {
+        AsyncOperation m_Operation = null;
+
+        public LevelLoadOperationSimulation(string assetBundleName, string levelName, bool isAdditive)
+        {
+            string[] levelPaths = UnityEditor.AssetDatabase.GetAssetPathsFromAssetBundleAndAssetName(assetBundleName, levelName);
+            if (levelPaths.Length == 0)
+            {
+                Debug.LogError("There is no scene with name \"" + levelName + "\" in " + assetBundleName);
+                return;
+            }
+
+            if (isAdditive)
+                m_Operation = UnityEditor.EditorApplication.LoadLevelAdditiveAsyncInPlayMode(levelPaths[0]);
+            else
+                m_Operation = UnityEditor.EditorApplication.LoadLevelAsyncInPlayMode(levelPaths[0]);
+        }
+
+        public override bool Update()
+        {
+            return false;
+        }
+
+        public override bool IsDone()
+        {
+            return m_Operation == null || m_Operation.isDone;
+        }
+    }
+#endif
 }

@@ -14,7 +14,7 @@ namespace AssetBundles
         static public string CreateAssetBundleDirectory()
         {
             // Choose the output path according to the build target.
-            string outputPath = Path.Combine(Utility.AssetBundlesOutputPath, Utility.GetPlatformName());
+            string outputPath = Path.Combine(BundlesUtility.AssetBundlesOutputPath, BundlesUtility.GetPlatformName());
             if (!Directory.Exists(outputPath))
                 Directory.CreateDirectory(outputPath);
 
@@ -65,7 +65,7 @@ namespace AssetBundles
                 downloadURL = "http://" + localIP + ":7888/";
             }
 
-            string assetBundleManagerResourcesDirectory = "Assets/AssetBundleManager/Resources";
+            string assetBundleManagerResourcesDirectory = "Assets/BundleManager/Resources";
             string assetBundleUrlPath = Path.Combine(assetBundleManagerResourcesDirectory, "AssetBundleServerURL.bytes");
             Directory.CreateDirectory(assetBundleManagerResourcesDirectory);
             File.WriteAllText(assetBundleUrlPath, downloadURL);
@@ -116,7 +116,7 @@ namespace AssetBundles
 
             // Build and copy AssetBundles.
             BuildAssetBundles();
-            CopyAssetBundlesTo(Path.Combine(Application.streamingAssetsPath, Utility.AssetBundlesOutputPath));
+            CopyAssetBundlesTo(Path.Combine(Application.streamingAssetsPath, BundlesUtility.AssetBundlesOutputPath));
             AssetDatabase.Refresh();
 
             BuildOptions option = EditorUserBuildSettings.development ? BuildOptions.Development : BuildOptions.None;
@@ -150,10 +150,10 @@ namespace AssetBundles
             FileUtil.DeleteFileOrDirectory(Application.streamingAssetsPath);
             Directory.CreateDirectory(outputPath);
 
-            string outputFolder = Utility.GetPlatformName();
+            string outputFolder = BundlesUtility.GetPlatformName();
 
             // Setup the source folder for assetbundles.
-            var source = Path.Combine(Path.Combine(System.Environment.CurrentDirectory, Utility.AssetBundlesOutputPath), outputFolder);
+            var source = Path.Combine(Path.Combine(System.Environment.CurrentDirectory, BundlesUtility.AssetBundlesOutputPath), outputFolder);
             if (!System.IO.Directory.Exists(source))
                 Debug.Log("No assetBundle output folder, try to build the assetBundles first.");
 
@@ -179,8 +179,8 @@ namespace AssetBundles
 
         static string GetAssetBundleManifestFilePath()
         {
-            var relativeAssetBundlesOutputPathForPlatform = Path.Combine(Utility.AssetBundlesOutputPath, Utility.GetPlatformName());
-            return Path.Combine(relativeAssetBundlesOutputPathForPlatform,  Utility.GetPlatformName()) + ".manifest";
+            var relativeAssetBundlesOutputPathForPlatform = Path.Combine(BundlesUtility.AssetBundlesOutputPath, BundlesUtility.GetPlatformName());
+            return Path.Combine(relativeAssetBundlesOutputPathForPlatform,  BundlesUtility.GetPlatformName()) + ".manifest";
         }
     }
 }

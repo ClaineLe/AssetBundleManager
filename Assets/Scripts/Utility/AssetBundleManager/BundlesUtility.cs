@@ -5,7 +5,7 @@ using UnityEditor;
 
 namespace AssetBundles
 {
-    public class Utility
+    public class BundlesUtility
     {
         public const string AssetBundlesOutputPath = "AssetBundles";
 

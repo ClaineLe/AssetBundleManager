@@ -55,8 +55,6 @@ public class BundleUtility
 		case UnityEditor.BuildTarget.StandaloneWindows:
 		case UnityEditor.BuildTarget.StandaloneWindows64:
 			return "Windows";
-		case UnityEditor.BuildTarget.StandaloneOSXIntel:
-		case UnityEditor.BuildTarget.StandaloneOSXIntel64:
 		case UnityEditor.BuildTarget.StandaloneOSX:
 			return "OSX";
 		default:

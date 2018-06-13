@@ -102,13 +102,17 @@ namespace AssetBundles
                     }
                 case BuildTarget.iOS:
                     {
-                        targetName = "";
                         break;
                     }
+			default:
+				{
+					targetName = string.Empty;
+					break;
+				}
             }
 
 
-            if (targetName == null)
+			if (string.IsNullOrEmpty(targetName))
                 return;
 
             // Build and copy AssetBundles.

@@ -5,3 +5,4 @@ UnityPackageManager/
 BundleManager.csproj
 BundleManager.Editor.csproj
 BundleManager.sln
+AssetBundles/

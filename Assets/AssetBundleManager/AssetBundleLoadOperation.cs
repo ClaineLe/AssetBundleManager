@@ -1,10 +1,5 @@
 using UnityEngine;
-#if UNITY_5_3 || UNITY_5_4
 using UnityEngine.SceneManagement;
-#endif
-#if ENABLE_IOS_ON_DEMAND_RESOURCES
-using UnityEngine.iOS;
-#endif
 using System.Collections;
 
 namespace AssetBundles
@@ -68,84 +63,6 @@ namespace AssetBundles
         }
     }
 
-#if ENABLE_IOS_ON_DEMAND_RESOURCES
-    // Read asset bundle asynchronously from iOS / tvOS asset catalog that is downloaded
-    // using on demand resources functionality.
-    public class AssetBundleDownloadFromODROperation : AssetBundleDownloadOperation
-    {
-        OnDemandResourcesRequest request;
-
-        public AssetBundleDownloadFromODROperation(string assetBundleName)
-            : base(assetBundleName)
-        {
-            // Work around Xcode crash when opening Resources tab when a 
-            // resource name contains slash character
-            request = OnDemandResources.PreloadAsync(new string[] { assetBundleName.Replace('/', '>') });
-        }
-
-        protected override bool downloadIsDone { get { return (request == null) || request.isDone; } }
-
-        public override string GetSourceURL()
-        {
-            return "odr://" + assetBundleName;
-        }
-
-        protected override void FinishDownload()
-        {
-            error = request.error;
-            if (error != null)
-                return;
-
-            var path = "res://" + assetBundleName;
-            var bundle = AssetBundle.CreateFromFile(path);
-            if (bundle == null)
-            {
-                error = string.Format("Failed to load {0}", path);
-                request.Dispose();
-            }
-            else
-            {
-                assetBundle = new LoadedAssetBundle(bundle);
-                // At the time of unload request is already set to null, so capture it to local variable.
-                var localRequest = request;
-                // Dispose of request only when bundle is unloaded to keep the ODR pin alive.
-                assetBundle.unload += () =>
-                {
-                    localRequest.Dispose();
-                };
-            }
-
-            request = null;
-        }
-    }
-#endif
-
-#if ENABLE_IOS_APP_SLICING
-    // Read asset bundle synchronously from an iOS / tvOS asset catalog
-    public class AssetBundleOpenFromAssetCatalogOperation : AssetBundleDownloadOperation
-    {
-        public AssetBundleOpenFromAssetCatalogOperation(string assetBundleName)
-            : base(assetBundleName)
-        {
-            var path = "res://" + assetBundleName;
-            var bundle = AssetBundle.CreateFromFile(path);
-            if (bundle == null)
-                error = string.Format("Failed to load {0}", path);
-            else
-                assetBundle = new LoadedAssetBundle(bundle);
-        }
-
-        protected override bool downloadIsDone { get { return true; } }
-
-        protected override void FinishDownload() {}
-
-        public override string GetSourceURL()
-        {
-            return "res://" + assetBundleName;
-        }
-    }
-#endif
-
     public class AssetBundleDownloadFromWebOperation : AssetBundleDownloadOperation
     {
         WWW m_WWW;
@@ -194,9 +111,6 @@ namespace AssetBundles
             string[] levelPaths = UnityEditor.AssetDatabase.GetAssetPathsFromAssetBundleAndAssetName(assetBundleName, levelName);
             if (levelPaths.Length == 0)
             {
-                ///@TODO: The error needs to differentiate that an asset bundle name doesn't exist
-                //        from that there right scene does not exist in the asset bundle...
-
                 Debug.LogError("There is no scene with name \"" + levelName + "\" in " + assetBundleName);
                 return;
             }
@@ -242,14 +156,7 @@ namespace AssetBundles
             LoadedAssetBundle bundle = AssetBundleManager.GetLoadedAssetBundle(m_AssetBundleName, out m_DownloadingError);
             if (bundle != null)
             {
-#if UNITY_5_3 || UNITY_5_4
                 m_Request = SceneManager.LoadSceneAsync(m_LevelName, m_IsAdditive ? LoadSceneMode.Additive : LoadSceneMode.Single);
-#else
-                if (m_IsAdditive)
-                    m_Request = Application.LoadLevelAdditiveAsync(m_LevelName);
-                else
-                    m_Request = Application.LoadLevelAsync(m_LevelName);
-#endif
                 return false;
             }
             else

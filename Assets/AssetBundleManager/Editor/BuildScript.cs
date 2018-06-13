@@ -1,7 +1,5 @@
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.Callbacks;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
@@ -32,27 +30,10 @@ namespace AssetBundles
         {
             // Choose the output path according to the build target.
             string outputPath = CreateAssetBundleDirectory();
-
             var options = BuildAssetBundleOptions.None;
-
-            bool shouldCheckODR = EditorUserBuildSettings.activeBuildTarget == BuildTarget.iOS;
-#if UNITY_TVOS
-            shouldCheckODR |= EditorUserBuildSettings.activeBuildTarget == BuildTarget.tvOS;
-#endif
-            if (shouldCheckODR)
-            {
-#if ENABLE_IOS_ON_DEMAND_RESOURCES
-                if (PlayerSettings.iOS.useOnDemandResources)
-                    options |= BuildAssetBundleOptions.UncompressedAssetBundle;
-#endif
-#if ENABLE_IOS_APP_SLICING
-                options |= BuildAssetBundleOptions.UncompressedAssetBundle;
-#endif
-            }
 
             if (builds == null || builds.Length == 0)
             {
-                //@TODO: use append hash... (Make sure pipeline works correctly with it.)
                 BuildPipeline.BuildAssetBundles(outputPath, options, EditorUserBuildSettings.activeBuildTarget);
             }
             else
@@ -112,18 +93,8 @@ namespace AssetBundles
             BuildScript.BuildAssetBundles();
             WriteServerURL();
 
-#if UNITY_5_4 || UNITY_5_3 || UNITY_5_2 || UNITY_5_1 || UNITY_5_0
             BuildOptions option = EditorUserBuildSettings.development ? BuildOptions.Development : BuildOptions.None;
             BuildPipeline.BuildPlayer(levels, outputPath + targetName, EditorUserBuildSettings.activeBuildTarget, option);
-#else
-            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
-            buildPlayerOptions.scenes = levels;
-            buildPlayerOptions.locationPathName = outputPath + targetName;
-            buildPlayerOptions.assetBundleManifestPath = GetAssetBundleManifestFilePath();
-            buildPlayerOptions.target = EditorUserBuildSettings.activeBuildTarget;
-            buildPlayerOptions.options = EditorUserBuildSettings.development ? BuildOptions.Development : BuildOptions.None;
-            BuildPipeline.BuildPlayer(buildPlayerOptions);
-#endif
         }
 
         public static void BuildStandalonePlayer()
@@ -144,22 +115,12 @@ namespace AssetBundles
                 return;
 
             // Build and copy AssetBundles.
-            BuildScript.BuildAssetBundles();
-            BuildScript.CopyAssetBundlesTo(Path.Combine(Application.streamingAssetsPath, Utility.AssetBundlesOutputPath));
+            BuildAssetBundles();
+            CopyAssetBundlesTo(Path.Combine(Application.streamingAssetsPath, Utility.AssetBundlesOutputPath));
             AssetDatabase.Refresh();
 
-#if UNITY_5_4 || UNITY_5_3 || UNITY_5_2 || UNITY_5_1 || UNITY_5_0
             BuildOptions option = EditorUserBuildSettings.development ? BuildOptions.Development : BuildOptions.None;
             BuildPipeline.BuildPlayer(levels, outputPath + targetName, EditorUserBuildSettings.activeBuildTarget, option);
-#else
-            BuildPlayerOptions buildPlayerOptions = new BuildPlayerOptions();
-            buildPlayerOptions.scenes = levels;
-            buildPlayerOptions.locationPathName = outputPath + targetName;
-            buildPlayerOptions.assetBundleManifestPath = GetAssetBundleManifestFilePath();
-            buildPlayerOptions.target = EditorUserBuildSettings.activeBuildTarget;
-            buildPlayerOptions.options = EditorUserBuildSettings.development ? BuildOptions.Development : BuildOptions.None;
-            BuildPipeline.BuildPlayer(buildPlayerOptions);
-#endif
         }
 
         public static string GetBuildTargetName(BuildTarget target)
@@ -171,8 +132,6 @@ namespace AssetBundles
                 case BuildTarget.StandaloneWindows:
                 case BuildTarget.StandaloneWindows64:
                     return "/test.exe";
-                case BuildTarget.StandaloneOSXIntel:
-                case BuildTarget.StandaloneOSXIntel64:
                 case BuildTarget.StandaloneOSX:
                     return "/test.app";
                 case BuildTarget.WebGL:

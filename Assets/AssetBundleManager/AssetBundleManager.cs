@@ -345,76 +345,6 @@ namespace AssetBundles
             return m_BaseDownloadingURL;
         }
 
-        // Checks who is responsible for determination of the correct asset bundle variant
-        // that should be loaded on this platform. 
-        //
-        // On most platforms, this is done by the AssetBundleManager itself. However, on
-        // certain platforms (iOS at the moment) it's possible that an external asset bundle
-        // variant resolution mechanism is used. In these cases, we use base asset bundle 
-        // name (without the variant tag) as the bundle identifier. The platform-specific 
-        // code is responsible for correctly loading the bundle.
-        static protected bool UsesExternalBundleVariantResolutionMechanism(string baseAssetBundleName)
-        {
-#if ENABLE_IOS_APP_SLICING
-            var url = GetAssetBundleBaseDownloadingURL(baseAssetBundleName);
-            if (url.ToLower().StartsWith("res://") ||
-                url.ToLower().StartsWith("odr://"))
-                return true;
-#endif
-            return false;
-        }
-
-        // Remaps the asset bundle name to the best fitting asset bundle variant.
-        static protected string RemapVariantName(string assetBundleName)
-        {
-            string[] bundlesWithVariant = m_AssetBundleManifest.GetAllAssetBundlesWithVariant();
-
-            // Get base bundle name
-            string baseName = assetBundleName.Split('.')[0];
-
-            if (UsesExternalBundleVariantResolutionMechanism(baseName))
-                return baseName;
-
-            int bestFit = int.MaxValue;
-            int bestFitIndex = -1;
-            // Loop all the assetBundles with variant to find the best fit variant assetBundle.
-            for (int i = 0; i < bundlesWithVariant.Length; i++)
-            {
-                string[] curSplit = bundlesWithVariant[i].Split('.');
-                string curBaseName = curSplit[0];
-                string curVariant = curSplit[1];
-
-                if (curBaseName != baseName)
-                    continue;
-
-                int found = System.Array.IndexOf(m_ActiveVariants, curVariant);
-
-                // If there is no active variant found. We still want to use the first
-                if (found == -1)
-                    found = int.MaxValue - 1;
-
-                if (found < bestFit)
-                {
-                    bestFit = found;
-                    bestFitIndex = i;
-                }
-            }
-
-            if (bestFit == int.MaxValue - 1)
-            {
-                Log(LogType.Warning, "Ambigious asset bundle variant chosen because there was no matching active variant: " + bundlesWithVariant[bestFitIndex]);
-            }
-
-            if (bestFitIndex != -1)
-            {
-                return bundlesWithVariant[bestFitIndex];
-            }
-            else
-            {
-                return assetBundleName;
-            }
-        }
-
         // Sets up download operation for the given asset bundle if it's not downloaded already.
         static protected bool LoadAssetBundleInternal(string assetBundleName, bool isLoadingAssetBundleManifest)
         {
@@ -435,45 +365,20 @@ namespace AssetBundles
 
             string bundleBaseDownloadingURL = GetAssetBundleBaseDownloadingURL(assetBundleName);
 
-            if (bundleBaseDownloadingURL.ToLower().StartsWith("odr://"))
+            WWW download = null;
+
+            if (!bundleBaseDownloadingURL.EndsWith("/"))
             {
-#if ENABLE_IOS_ON_DEMAND_RESOURCES
-                Log(LogType.Info, "Requesting bundle " + assetBundleName + " through ODR");
-                m_InProgressOperations.Add(new AssetBundleDownloadFromODROperation(assetBundleName));
-#else
-                new ApplicationException("Can't load bundle " + assetBundleName + " through ODR: this Unity version or build target doesn't support it.");
-#endif
+                bundleBaseDownloadingURL += "/";
             }
-            else if (bundleBaseDownloadingURL.ToLower().StartsWith("res://"))
-            {
-#if ENABLE_IOS_APP_SLICING
-                Log(LogType.Info, "Requesting bundle " + assetBundleName + " through asset catalog");
-                m_InProgressOperations.Add(new AssetBundleOpenFromAssetCatalogOperation(assetBundleName));
-#else
-                new ApplicationException("Can't load bundle " + assetBundleName + " through asset catalog: this Unity version or build target doesn't support it.");
-#endif
-            }
+            string url = bundleBaseDownloadingURL + assetBundleName;
+            if (isLoadingAssetBundleManifest)
+                download = new WWW(url);
             else
-            {
-                WWW download = null;
+                download = WWW.LoadFromCacheOrDownload(url, m_AssetBundleManifest.GetAssetBundleHash(assetBundleName), 0);
 
-                if (!bundleBaseDownloadingURL.EndsWith("/"))
-                {
-                    bundleBaseDownloadingURL += "/";
-                }
-
-                string url = bundleBaseDownloadingURL + assetBundleName;
-
-                // For manifest assetbundle, always download it as we don't have hash for it.
-                if (isLoadingAssetBundleManifest)
-                    download = new WWW(url);
-                else
-                    download = WWW.LoadFromCacheOrDownload(url, m_AssetBundleManifest.GetAssetBundleHash(assetBundleName), 0);
-
-                m_InProgressOperations.Add(new AssetBundleDownloadFromWebOperation(assetBundleName, download));
-            }
+            m_InProgressOperations.Add(new AssetBundleDownloadFromWebOperation(assetBundleName, download));
             m_DownloadingBundles.Add(assetBundleName);
-
             return false;
         }
 
@@ -491,8 +396,6 @@ namespace AssetBundles
             if (dependencies.Length == 0)
                 return;
 
-            for (int i = 0; i < dependencies.Length; i++)
-                dependencies[i] = RemapVariantName(dependencies[i]);
 
             // Record and load all dependencies.
             m_Dependencies.Add(assetBundleName, dependencies);
@@ -510,7 +413,6 @@ namespace AssetBundles
             if (SimulateAssetBundleInEditor)
                 return;
 #endif
-            assetBundleName = RemapVariantName(assetBundleName);
 
             UnloadAssetBundleInternal(assetBundleName);
             UnloadDependencies(assetBundleName);
@@ -608,7 +510,6 @@ namespace AssetBundles
             else
 #endif
             {
-                assetBundleName = RemapVariantName(assetBundleName);
                 LoadAssetBundle(assetBundleName);
                 operation = new AssetBundleLoadAssetOperationFull(assetBundleName, assetName, type);
 
@@ -634,7 +535,6 @@ namespace AssetBundles
             else
 #endif
             {
-                assetBundleName = RemapVariantName(assetBundleName);
                 LoadAssetBundle(assetBundleName);
                 operation = new AssetBundleLoadLevelOperation(assetBundleName, levelName, isAdditive);
 

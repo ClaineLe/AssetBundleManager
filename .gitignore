@@ -1,0 +1,7 @@
+.vs/
+Library/
+Temp/
+UnityPackageManager/
+BundleManager.csproj
+BundleManager.Editor.csproj
+BundleManager.sln
